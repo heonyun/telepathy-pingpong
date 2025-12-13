@@ -1,35 +1,25 @@
-import { db } from '@/lib/db';
 import { pusherServer } from '@/lib/pusher';
 import { NextResponse } from 'next/server';
-import { nanoid } from 'nanoid';
 
 export async function POST(req, { params }) {
     try {
-        const { slug } = params;
-        const roomId = `room:${slug}`;
-        const { deviceId, emoji } = await req.json();
+        const { slug } = await params;
+        const body = await req.json();
+        const { deviceId, emoji } = body;
 
-        const messageId = nanoid();
-        const now = new Date().toISOString();
-        const message = {
-            id: messageId,
-            roomId,
-            senderDeviceId: deviceId,
+        // Must match the channel client subscribes to (presence-room-...)
+        const channelName = `presence-room-${slug}`;
+
+        await pusherServer.trigger(channelName, 'message:new', {
+            id: Date.now().toString(),
             emoji,
-            createdAt: now
-        };
+            senderDeviceId: deviceId, // Use this to ignore own messages
+            createdAt: new Date().toISOString()
+        });
 
-        // Update Room Activity
-        await db.hset(roomId, { lastActivityAt: now });
-
-        // Trigger Pusher Event
-        // Channel name: presence-{roomId} (using slug as ID part for simplicity if unique)
-        // Actually roomId in DB is `room:${slug}`. Let's use `presence-room-${slug}` for channel name to be safe.
-        await pusherServer.trigger(`presence-room-${slug}`, 'message:new', message);
-
-        return NextResponse.json({ success: true, messageId });
+        return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("Send Message Error", error);
-        return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
+        console.error('Message Send Error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

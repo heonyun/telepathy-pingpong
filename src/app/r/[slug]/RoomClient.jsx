@@ -11,7 +11,7 @@ export default function RoomClient({ slug }) {
     const [myDeviceId, setMyDeviceId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [echoStatus, setEchoStatus] = useState(null);
-    const [connState, setConnState] = useState('connecting'); // Debug
+    const [connState, setConnState] = useState('connecting');
 
     const timerRef = useRef(null);
     const channelRef = useRef(null);
@@ -26,11 +26,15 @@ export default function RoomClient({ slug }) {
         setMyDeviceId(did);
         setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system', createdAt: new Date() }]);
 
-        // Debug: Monitor connection state
+        // Request Notification Permission
+        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
         pusherClient.connection.bind('state_change', (states) => {
             setConnState(states.current);
         });
-        setConnState(pusherClient.connection.state); // Init
+        setConnState(pusherClient.connection.state);
     }, []);
 
     useEffect(() => {
@@ -42,7 +46,6 @@ export default function RoomClient({ slug }) {
 
         channel.bind('pusher:subscription_succeeded', (members) => {
             setCount(members.count);
-            console.log('Subscribed!');
         });
 
         channel.bind('pusher:subscription_error', (err) => {
@@ -53,19 +56,28 @@ export default function RoomClient({ slug }) {
 
         channel.bind('pusher:member_added', () => setCount(prev => prev + 1));
         channel.bind('pusher:member_removed', () => setCount(prev => Math.max(0, prev - 1)));
-        channel.bind('message:new', (data) => handleNewMessage(data));
+
+        // Message Handler with Notification
+        channel.bind('message:new', (data) => {
+            setMessages(prev => [data, ...prev].slice(0, 50));
+
+            if (data.senderDeviceId !== myDeviceId) {
+                startAutoEcho(data);
+
+                // Show Notification if hidden
+                if (document.hidden && Notification.permission === 'granted') {
+                    new Notification('텔레파시 도착! 💘', {
+                        body: `${data.emoji} 메시지가 도착했습니다!`,
+                        icon: '/icons/icon-192x192.png' // Icon if available
+                    });
+                }
+            }
+        });
 
         return () => {
             pusherClient.unsubscribe(channelName);
         };
     }, [myDeviceId, slug]);
-
-    const handleNewMessage = (msg) => {
-        setMessages(prev => [msg, ...prev].slice(0, 50));
-        if (msg.senderDeviceId !== myDeviceId) {
-            startAutoEcho(msg);
-        }
-    };
 
     const startAutoEcho = (msg) => {
         if (timerRef.current) clearTimeout(timerRef.current);
@@ -97,8 +109,10 @@ export default function RoomClient({ slug }) {
         try {
             await fetch(`/api/rooms/${slug}/messages`, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deviceId: myDeviceId, emoji })
             });
+            // Optimistic update not needed as Pusher will echo back
         } catch (e) {
             console.error(e);
             alert('Send failed');
