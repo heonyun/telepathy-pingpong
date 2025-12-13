@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { pusherClient } from '@/lib/pusher';
 
 const PRESETS = ['🍚', '🏠', '😴', '❓', '🆗'];
@@ -10,10 +10,7 @@ export default function RoomClient({ slug }) {
     const [count, setCount] = useState(0);
     const [myDeviceId, setMyDeviceId] = useState(null);
     const [messages, setMessages] = useState([]);
-    const [echoStatus, setEchoStatus] = useState(null);
     const [connState, setConnState] = useState('connecting');
-
-    const timerRef = useRef(null);
     const channelRef = useRef(null);
 
     useEffect(() => {
@@ -26,11 +23,7 @@ export default function RoomClient({ slug }) {
         setMyDeviceId(did);
         setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system', createdAt: new Date() }]);
 
-        // Request Notification Permission
-        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-
+        // Monitor connection state
         pusherClient.connection.bind('state_change', (states) => {
             setConnState(states.current);
         });
@@ -51,25 +44,26 @@ export default function RoomClient({ slug }) {
         channel.bind('pusher:subscription_error', (err) => {
             console.error('Sub Error:', err);
             setConnState('sub_error');
-            alert('Chat connection failed (Auth error). Please refresh.');
+            alert('Chat connection failed. Please refresh.');
         });
 
         channel.bind('pusher:member_added', () => setCount(prev => prev + 1));
         channel.bind('pusher:member_removed', () => setCount(prev => Math.max(0, prev - 1)));
 
-        // Message Handler with Notification
         channel.bind('message:new', (data) => {
             setMessages(prev => [data, ...prev].slice(0, 50));
 
             if (data.senderDeviceId !== myDeviceId) {
-                startAutoEcho(data);
-
-                // Show Notification if hidden
+                // Check urgency/visibilty for notification
                 if (document.hidden && Notification.permission === 'granted') {
-                    new Notification('텔레파시 도착! 💘', {
-                        body: `${data.emoji} 메시지가 도착했습니다!`,
-                        icon: '/icons/icon-192x192.png' // Icon if available
-                    });
+                    try {
+                        new Notification('텔레파시 도착! 💘', {
+                            body: `${data.emoji}`,
+                            icon: '/icons/icon-192x192.png'
+                        });
+                    } catch (e) {
+                        console.error("Notification error", e);
+                    }
                 }
             }
         });
@@ -79,43 +73,37 @@ export default function RoomClient({ slug }) {
         };
     }, [myDeviceId, slug]);
 
-    const startAutoEcho = (msg) => {
-        if (timerRef.current) clearTimeout(timerRef.current);
-        setEchoStatus({ id: msg.id, emoji: msg.emoji });
-        timerRef.current = setTimeout(() => {
-            sendMessage(msg.emoji, true);
-            setEchoStatus(null);
-        }, 3000);
+    const requestNotifPermission = async () => {
+        if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+            const result = await Notification.requestPermission();
+            if (result === 'granted') {
+                // Maybe show a toast saying "Notifications enabled!"
+            }
+        }
     };
 
-    const cancelAutoEcho = useCallback(() => {
-        if (timerRef.current) {
-            clearTimeout(timerRef.current);
-            timerRef.current = null;
-            setEchoStatus(null);
-        }
-    }, []);
+    const sendMessage = async (emoji) => {
+        // Request permission on first interaction if needed
+        requestNotifPermission();
 
-    useEffect(() => {
-        if (!echoStatus) return;
-        const events = ['mousedown', 'touchstart', 'scroll', 'keydown'];
-        const handler = () => cancelAutoEcho();
-        events.forEach(ev => window.addEventListener(ev, handler));
-        return () => events.forEach(ev => window.removeEventListener(ev, handler));
-    }, [echoStatus, cancelAutoEcho]);
-
-    const sendMessage = async (emoji, isAuto = false) => {
-        if (!isAuto) cancelAutoEcho();
         try {
             await fetch(`/api/rooms/${slug}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deviceId: myDeviceId, emoji })
             });
-            // Optimistic update not needed as Pusher will echo back
         } catch (e) {
             console.error(e);
             alert('Send failed');
+        }
+    };
+
+    const copyLink = () => {
+        const url = window.location.href;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url).then(() => alert('주소 복사 완료! 친구에게 공유하세요. 🔗'));
+        } else {
+            prompt("주소를 복사하세요:", url);
         }
     };
 
@@ -124,21 +112,24 @@ export default function RoomClient({ slug }) {
     return (
         <div className="room-container">
             <div className="header">
-                <div style={{ fontWeight: 'bold' }}>
+                <div className="header-title">
                     One-Touch
                     <span style={{
-                        display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%',
-                        marginLeft: '8px',
+                        display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
+                        marginLeft: '6px',
                         background: connState === 'connected' ? '#4ade80' :
                             connState === 'sub_error' ? '#ef4444' : '#fbbf24'
                     }} title={connState} />
                 </div>
-                <div className="badge">👤 {count} received</div>
+                <div className="header-controls">
+                    <button className="icon-btn" onClick={copyLink} title="주소 복사">🔗</button>
+                    <div className="badge">👤 {count}</div>
+                </div>
             </div>
 
             <div className="heart-stage">
-                {echoStatus && <div className="auto-echo-ring"><div className="auto-echo-progress" /></div>}
                 <div className="big-heart" onClick={() => sendMessage('❤️')}>❤️</div>
+                <div className="help-text">Tap heart to send</div>
             </div>
 
             <div className="controls">
@@ -164,7 +155,6 @@ export default function RoomClient({ slug }) {
                     </div>
                 </div>
             </div>
-            {echoStatus && <div className="toast">Auto-reply in 3s... Tap to cancel</div>}
         </div>
     );
 }
