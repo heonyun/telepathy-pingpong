@@ -26,9 +26,13 @@ export default function Home() {
             const data = await res.json();
             if (data.url) {
                 router.push(data.url);
+            } else {
+                alert('Failed to create room: ' + (data.error || 'Unknown error'));
+                setLoading(false);
             }
         } catch (e) {
             console.error(e);
+            alert('Network error, please try again.');
             setLoading(false);
         }
     };
