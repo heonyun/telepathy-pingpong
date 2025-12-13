@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { pusherClient } from '@/lib/pusher';
-// import { useParams } from 'next/navigation'; // Passed from prop
 
 const PRESETS = ['🍚', '🏠', '😴', '❓', '🆗'];
 
@@ -11,13 +10,12 @@ export default function RoomClient({ slug }) {
     const [count, setCount] = useState(0);
     const [myDeviceId, setMyDeviceId] = useState(null);
     const [messages, setMessages] = useState([]);
-    const [echoStatus, setEchoStatus] = useState(null); // { id, emoji }
+    const [echoStatus, setEchoStatus] = useState(null);
+    const [connState, setConnState] = useState('connecting'); // Debug
 
     const timerRef = useRef(null);
     const channelRef = useRef(null);
-    const historyRef = useRef([]); // To safely access in callbacks if needed
 
-    // 1. Init Device ID & Sound
     useEffect(() => {
         setMounted(true);
         let did = localStorage.getItem('deviceId');
@@ -26,14 +24,15 @@ export default function RoomClient({ slug }) {
             localStorage.setItem('deviceId', did);
         }
         setMyDeviceId(did);
+        setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system', createdAt: new Date() }]);
 
-        // Initial dummy history
-        setMessages([
-            { id: 'welcome', emoji: '👋', senderDeviceId: 'system', createdAt: new Date() }
-        ]);
+        // Debug: Monitor connection state
+        pusherClient.connection.bind('state_change', (states) => {
+            setConnState(states.current);
+        });
+        setConnState(pusherClient.connection.state); // Init
     }, []);
 
-    // 2. Pusher Connection
     useEffect(() => {
         if (!myDeviceId || !slug) return;
 
@@ -43,19 +42,18 @@ export default function RoomClient({ slug }) {
 
         channel.bind('pusher:subscription_succeeded', (members) => {
             setCount(members.count);
+            console.log('Subscribed!');
         });
 
-        channel.bind('pusher:member_added', () => {
-            setCount(prev => prev + 1);
+        channel.bind('pusher:subscription_error', (err) => {
+            console.error('Sub Error:', err);
+            setConnState('sub_error');
+            alert('Chat connection failed (Auth error). Please refresh.');
         });
 
-        channel.bind('pusher:member_removed', () => {
-            setCount(prev => Math.max(0, prev - 1));
-        });
-
-        channel.bind('message:new', (data) => {
-            handleNewMessage(data);
-        });
+        channel.bind('pusher:member_added', () => setCount(prev => prev + 1));
+        channel.bind('pusher:member_removed', () => setCount(prev => Math.max(0, prev - 1)));
+        channel.bind('message:new', (data) => handleNewMessage(data));
 
         return () => {
             pusherClient.unsubscribe(channelName);
@@ -63,24 +61,18 @@ export default function RoomClient({ slug }) {
     }, [myDeviceId, slug]);
 
     const handleNewMessage = (msg) => {
-        setMessages(prev => [msg, ...prev].slice(0, 50)); // Keep last 50
-        // Check Auto Echo
+        setMessages(prev => [msg, ...prev].slice(0, 50));
         if (msg.senderDeviceId !== myDeviceId) {
             startAutoEcho(msg);
         }
     };
 
-    // 3. Auto Echo Logic
     const startAutoEcho = (msg) => {
         if (timerRef.current) clearTimeout(timerRef.current);
-
         setEchoStatus({ id: msg.id, emoji: msg.emoji });
-
         timerRef.current = setTimeout(() => {
-            // Send Auto Echo
             sendMessage(msg.emoji, true);
             setEchoStatus(null);
-            // Optional: Show toast "Auto replied!"
         }, 3000);
     };
 
@@ -92,35 +84,24 @@ export default function RoomClient({ slug }) {
         }
     }, []);
 
-    // Global Interaction Listener to Cancel Echo
     useEffect(() => {
         if (!echoStatus) return;
-
         const events = ['mousedown', 'touchstart', 'scroll', 'keydown'];
         const handler = () => cancelAutoEcho();
-
         events.forEach(ev => window.addEventListener(ev, handler));
-        return () => {
-            events.forEach(ev => window.removeEventListener(ev, handler));
-        };
+        return () => events.forEach(ev => window.removeEventListener(ev, handler));
     }, [echoStatus, cancelAutoEcho]);
 
-
-    // 4. Send Message
     const sendMessage = async (emoji, isAuto = false) => {
-        if (!isAuto) cancelAutoEcho(); // User action cancels pending echo
-
-        // Optimistic UI update could go here, but let's wait for server echo for consistency or just push local
-        // setMessages(prev => [{ id: Date.now(), emoji, senderDeviceId: myDeviceId }, ...prev]);
-
+        if (!isAuto) cancelAutoEcho();
         try {
             await fetch(`/api/rooms/${slug}/messages`, {
                 method: 'POST',
                 body: JSON.stringify({ deviceId: myDeviceId, emoji })
             });
-            // Animation trigger could happen here
         } catch (e) {
             console.error(e);
+            alert('Send failed');
         }
     };
 
@@ -128,25 +109,24 @@ export default function RoomClient({ slug }) {
 
     return (
         <div className="room-container">
-            {/* Header */}
             <div className="header">
-                <div style={{ fontWeight: 'bold' }}>One-Touch</div>
+                <div style={{ fontWeight: 'bold' }}>
+                    One-Touch
+                    <span style={{
+                        display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%',
+                        marginLeft: '8px',
+                        background: connState === 'connected' ? '#4ade80' :
+                            connState === 'sub_error' ? '#ef4444' : '#fbbf24'
+                    }} title={connState} />
+                </div>
                 <div className="badge">👤 {count} received</div>
             </div>
 
-            {/* Main Heart Area */}
             <div className="heart-stage">
                 {echoStatus && <div className="auto-echo-ring"><div className="auto-echo-progress" /></div>}
-
-                <div
-                    className="big-heart"
-                    onClick={() => sendMessage('❤️')}
-                >
-                    ❤️
-                </div>
+                <div className="big-heart" onClick={() => sendMessage('❤️')}>❤️</div>
             </div>
 
-            {/* Chat / Timeline */}
             <div className="controls">
                 <div className="history">
                     {messages.slice(0, 5).map((m, i) => (
@@ -158,38 +138,19 @@ export default function RoomClient({ slug }) {
                         </div>
                     ))}
                 </div>
-
-                {/* Presets */}
                 <div className="emoji-grid">
                     {PRESETS.map(emoji => (
-                        <button key={emoji} className="emoji-btn" onClick={() => sendMessage(emoji)}>
-                            {emoji}
-                        </button>
+                        <button key={emoji} className="emoji-btn" onClick={() => sendMessage(emoji)}>{emoji}</button>
                     ))}
-                    {/* Native Picker Hack */}
                     <div style={{ position: 'relative', overflow: 'hidden', width: '50px', height: '50px' }}>
                         <button className="emoji-btn" style={{ position: 'absolute', width: '100%', height: '100%' }}>➕</button>
-                        <input
-                            type="text"
-                            style={{
-                                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                                opacity: 0, fontSize: '50px', cursor: 'pointer'
-                            }}
-                            onChange={(e) => {
-                                if (e.target.value) {
-                                    // Simple regex or check if it's emoji-ish, or just send whatever char
-                                    sendMessage(e.target.value);
-                                    e.target.value = '';
-                                }
-                            }}
+                        <input type="text" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, fontSize: '50px', cursor: 'pointer' }}
+                            onChange={(e) => { if (e.target.value) { sendMessage(e.target.value); e.target.value = ''; } }}
                         />
                     </div>
                 </div>
             </div>
-
-            {echoStatus && (
-                <div className="toast">Auto-reply in 3s... Tap to cancel</div>
-            )}
+            {echoStatus && <div className="toast">Auto-reply in 3s... Tap to cancel</div>}
         </div>
     );
 }

@@ -2,26 +2,23 @@ import { pusherServer } from '@/lib/pusher';
 import { NextResponse } from 'next/server';
 
 export async function POST(req) {
-    const data = await req.formData();
-    const socketId = data.get('socket_id');
-    const channel = data.get('channel_name');
-
-    // For presence channel, we need user info.
-    // In a real app, verify session here.
-    const deviceId = req.headers.get('x-device-id') || `anon-${Date.now()}`;
-
-    const presenceData = {
-        user_id: deviceId,
-        user_info: {
-            deviceId: deviceId,
-        },
-    };
-
     try {
-        const authResponse = pusherServer.authorizeChannel(socketId, channel, presenceData);
+        const formData = await req.formData();
+        const socketId = formData.get('socket_id');
+        const channelName = formData.get('channel_name');
+
+        // Simple verification (no user auth for now, just allow)
+        const presenceData = {
+            user_id: Date.now().toString(), // Anonymous unique ID
+            user_info: {
+                isValid: true,
+            },
+        };
+
+        const authResponse = pusherServer.authorizeChannel(socketId, channelName, presenceData);
         return NextResponse.json(authResponse);
     } catch (error) {
-        console.error(error);
+        console.error('Pusher Auth Error:', error);
         return NextResponse.json({ error: 'Auth failed' }, { status: 500 });
     }
 }
