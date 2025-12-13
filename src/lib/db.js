@@ -1,4 +1,5 @@
 import { kv } from '@vercel/kv';
+import { createClient } from '@vercel/kv';
 import fs from 'fs';
 import path from 'path';
 
@@ -12,7 +13,7 @@ const localDb = {
             try {
                 data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
             } catch (e) {
-                console.error("Local DB read error", e);
+                console.error('Local DB read error', e);
             }
         }
         if (!data[key]) data[key] = {};
@@ -36,7 +37,6 @@ const localDb = {
         return null;
     },
     async expire(key, seconds) {
-        // Local DB doesn't support expire logic effectively without a running process
         return 1;
     },
     async exists(key) {
@@ -48,5 +48,17 @@ const localDb = {
     }
 };
 
-// Use Vercel KV in production (when env vars exist), otherwise local JSON
-export const db = process.env.KV_REST_API_URL ? kv : localDb;
+// Create client specifically for Upstash URL/Token if present
+let client = localDb;
+
+if (process.env.KV_REST_API_URL) {
+    client = kv;
+} else if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    console.log('Using Upstash Redis');
+    client = createClient({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+}
+
+export const db = client;
