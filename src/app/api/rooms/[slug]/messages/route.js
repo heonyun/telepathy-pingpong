@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 import PushNotifications from '@pusher/push-notifications-server';
 
 const beamsClient = new PushNotifications({
-    instanceId: '4338e24b-f8ae-4687-9fb2-6d303d9441ff',
-    secretKey: '609E498E01AB06C36D19FE826ADCF9A19C6545F2841674A73737782BC9A7A502',
+    instanceId: process.env.PUSHER_BEAMS_INSTANCE_ID,
+    secretKey: process.env.PUSHER_BEAMS_SECRET_KEY,
 });
 
 export async function POST(req, { params }) {
@@ -22,15 +22,12 @@ export async function POST(req, { params }) {
         });
 
         // Trigger Beams (Background Push)
-        // We catch errors here so real-time msgs don't fail if push fails
         try {
             await beamsClient.publishToInterests([`room-${slug}`], {
                 web: {
                     notification: {
                         title: "Telepathy! 💘",
                         body: `${emoji}`,
-                        // Use a generic icon or app icon
-                        // deep_link is supported by Beams web SDK to open the URL
                         deep_link: `https://telepathy-pingpong.vercel.app/r/${slug}`,
                     },
                 },
