@@ -30,9 +30,6 @@ export async function POST(req, { params }) {
                         body: `${emoji}`,
                         deep_link: `https://telepathy-pingpong.vercel.app/r/${slug}`,
                     },
-                    data: {
-                        senderId: deviceId, // Essential for loopback filtering in SW
-                    }
                 },
             });
         } catch (pushErr) {
