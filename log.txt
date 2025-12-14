@@ -1,0 +1,10 @@
+da200bc Fix: Restored globals.css and forced cache update
+a4f4089 Fix: Filter loopback notifications using native IndexedDB (#5)
+e2a4d74 Fix: Expose detailed error message in Room Creation API
+ea7c6dd Fix: Add missing Pusher Beams dependencies
+4318c1b Feat/beams rejoin (#4)
+af83659 PWA Upgrade: Auto-Rejoin & Pusher Beams (#3)
+257cfc8 Improve History UX: Horizontal Scroll & Click-Events (#2)
+3e482fb v0.1.2: UX/UI Improvements (Anim, History, PWA Join)
+24f6221 Refactor: Layout cleanup & Robust InstallPrompt
+86fffe0 Enhance RoomClient (Copy/Manual/Notif) and Robust InstallPrompt

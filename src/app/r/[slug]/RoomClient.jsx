@@ -6,221 +6,248 @@ import { useRouter } from 'next/navigation';
 import { nanoid } from 'nanoid';
 import * as PusherPushNotifications from "@pusher/push-notifications-web";
 
-const PRESETS = ['🍚', '🏠', '😴', '❓', '🆗'];
-const BEAMS_INSTANCE_ID = '4338e24b-f8ae-4687-9fb2-6d303d9441ff';
+const PRESETS = ["❤️", "👍", "🔥", "😂", "🎉", "👻"];
+
+// Safari-safe localStorage helper
+const safeLocalStorage = {
+    getItem: (key) => {
+        try {
+            if (typeof window !== 'undefined') {
+                return localStorage.getItem(key);
+            }
+        } catch (e) {
+            console.warn('localStorage access failed (Private Browsing?):', e);
+        }
+        return null;
+    },
+    setItem: (key, value) => {
+        try {
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(key, value);
+            }
+        } catch (e) {
+            console.warn('localStorage write failed (Private Browsing?):', e);
+        }
+    }
+};
 
 export default function RoomClient({ slug }) {
-    const router = useRouter();
-    const [mounted, setMounted] = useState(false);
-    const [count, setCount] = useState(0);
-    const [myDeviceId, setMyDeviceId] = useState(null);
     const [messages, setMessages] = useState([]);
-    const [connState, setConnState] = useState('connecting');
-    const [centerEmoji, setCenterEmoji] = useState('❤️');
+    const [centerEmoji, setCenterEmoji] = useState(null);
     const [animating, setAnimating] = useState(false);
-
+    const [deviceId, setDeviceId] = useState(null);
+    const router = useRouter();
     const historyRef = useRef(null);
-    const channelRef = useRef(null);
-    const dragStart = useRef({ x: 0, y: 0 });
 
+    // Initialize Device ID & Load History (Safe for Safari)
     useEffect(() => {
-        setMounted(true);
-        let did = localStorage.getItem('deviceId');
-        if (!did) {
-            did = 'dev-' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem('deviceId', did);
+        if (typeof window === 'undefined') return;
+
+        let id = safeLocalStorage.getItem('deviceId');
+        if (!id) {
+            id = nanoid();
+            safeLocalStorage.setItem('deviceId', id);
         }
-        setMyDeviceId(did);
-        setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system' }]);
+        setDeviceId(id);
 
-        // Auto-Rejoin Save
-        localStorage.setItem('lastRoom', slug);
-
-        pusherClient.connection.bind('state_change', (states) => {
-            setConnState(states.current);
-        });
-        setConnState(pusherClient.connection.state);
-
-        // Pusher Beams Registration
-        if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-            const beamsClient = new PusherPushNotifications.Client({
-                instanceId: BEAMS_INSTANCE_ID,
-            });
-
-            beamsClient.start()
-                .then(() => beamsClient.addDeviceInterest(`room-${slug}`))
-                .then(() => console.log('Successfully registered and subscribed!'))
-                .catch(console.error);
+        const savedHistory = safeLocalStorage.getItem(`history-${slug}`);
+        if (savedHistory) {
+            try {
+                setMessages(JSON.parse(savedHistory));
+            } catch (e) {
+                console.error("Failed to parse history", e);
+            }
         }
+
+        // Save current room for auto-rejoin
+        safeLocalStorage.setItem('lastRoom', `/r/${slug}`);
+
+        // Initialize Pusher Beams (Safe for Safari)
+        const initBeams = async () => {
+            try {
+                // Check if Service Workers are supported (Safari Private Mode might block this)
+                if (!('serviceWorker' in navigator)) {
+                    console.log('Service Workers not supported, skipping Beams.');
+                    return;
+                }
+
+                const beamsClient = new PusherPushNotifications.Client({
+                    instanceId: '3f67ba05-7284-48f8-b80c-7b06871a2a1b', // Public ID is safe here
+                });
+
+                await beamsClient.start();
+                await beamsClient.addDeviceInterest(`room-${slug}`);
+                console.log('Successfully registered and subscribed to Beams!');
+            } catch (e) {
+                console.warn('Pusher Beams initialization failed (Expected in Safari Private Mode):', e);
+            }
+        };
+
+        initBeams();
 
     }, [slug]);
 
+    // Pusher Real-time Subscription
     useEffect(() => {
-        if (!myDeviceId || !slug) return;
+        if (!slug) return;
 
         const channelName = `presence-room-${slug}`;
         const channel = pusherClient.subscribe(channelName);
-        channelRef.current = channel;
-
-        channel.bind('pusher:subscription_succeeded', (members) => {
-            setCount(members.count);
-        });
-
-        channel.bind('pusher:member_added', () => setCount(prev => prev + 1));
-        channel.bind('pusher:member_removed', () => setCount(prev => Math.max(0, prev - 1)));
 
         channel.bind('message:new', (data) => {
-            const msg = { ...data, id: data.id || nanoid() };
+            setCenterEmoji(data.emoji);
+            setAnimating(true);
 
-            setMessages(prev => {
-                const newHistory = [...prev, msg];
-                if (newHistory.length > 50) return newHistory.slice(newHistory.length - 50);
-                return newHistory;
+            // Add to history
+            const newMessage = { id: data.id || nanoid(), emoji: data.emoji, timestamp: new Date().toISOString() };
+            setMessages((prev) => {
+                const updated = [...prev, newMessage];
+                safeLocalStorage.setItem(`history-${slug}`, JSON.stringify(updated.slice(-50))); // Save last 50
+                return updated;
             });
 
-            if (msg.senderDeviceId !== myDeviceId) {
-                setCenterEmoji(msg.emoji);
-                triggerAnimation();
-                // In-app notification fallback if needed (but now we have Beams!)
-            }
+            setTimeout(() => setAnimating(false), 500);
         });
 
         return () => {
             pusherClient.unsubscribe(channelName);
         };
-    }, [myDeviceId, slug]);
+    }, [slug]);
 
+    // Auto-scroll history
     useEffect(() => {
         if (historyRef.current) {
             historyRef.current.scrollLeft = historyRef.current.scrollWidth;
         }
     }, [messages]);
 
-    const triggerAnimation = () => {
-        setAnimating(true);
-        setTimeout(() => setAnimating(false), 200);
-    };
-
     const sendMessage = async (emoji) => {
+        if (navigator.vibrate) navigator.vibrate(50);
+
+        // Optimistic UI
         setCenterEmoji(emoji);
-        triggerAnimation();
+        setAnimating(true);
+        setTimeout(() => setAnimating(false), 500);
 
         try {
             await fetch(`/api/rooms/${slug}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    deviceId: myDeviceId,
-                    emoji,
-                    id: nanoid()
-                })
+                body: JSON.stringify({ deviceId, emoji }),
             });
-        } catch (err) {
-            console.error('Send failed:', err);
+        } catch (error) {
+            console.error('Failed to send message:', error);
         }
     };
 
-    const goHome = () => {
-        if (confirm('방을 나가시겠습니까? (자동 입장도 해제됩니다)')) {
-            localStorage.removeItem('lastRoom'); // Clear auto-rejoin
-            router.push('/');
-        }
-    }
+    // Drag vs Click detection for History
+    const [dragStart, setDragStart] = useState(null);
 
-    const copyLink = () => {
-        const url = window.location.href;
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(url).then(() => alert('주소 복사 완료! 🔗'));
-        } else {
-            prompt("주소:", url);
-        }
-    };
+    const handleMouseDown = (e) => setDragStart({ x: e.clientX, y: e.clientY });
+    const handleTouchStart = (e) => setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
 
-    const handlePointerDown = (e) => {
-        dragStart.current = { x: e.clientX, y: e.clientY };
-    };
+    const handleClick = (e, emoji) => {
+        if (!dragStart) return;
+        const endX = e.clientX || (e.changedTouches ? e.changedTouches[0].clientX : 0);
+        const endY = e.clientY || (e.changedTouches ? e.changedTouches[0].clientY : 0);
 
-    const handleHistoryClick = (e, emoji) => {
-        const dx = Math.abs(e.clientX - dragStart.current.x);
-        const dy = Math.abs(e.clientY - dragStart.current.y);
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const threshold = e.pointerType === 'touch' ? 10 : 5;
-
-        if (distance > threshold) return; // It was a drag
-
-        sendMessage(emoji);
-        dragStart.current = { x: 0, y: 0 };
-    };
-
-    const handleKeyDown = (e, emoji) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
+        const dist = Math.sqrt(Math.pow(endX - dragStart.x, 2) + Math.pow(endY - dragStart.y, 2));
+        if (dist < 10) { // It's a click, not a drag
             sendMessage(emoji);
         }
+        setDragStart(null);
     };
 
-    if (!mounted) return <div className="container">Loading...</div>;
-
     return (
-        <div className="room-container">
-            <div className="header">
-                <div className="header-title" onClick={goHome} style={{ cursor: 'pointer' }}>
-                    <span style={{ marginRight: '5px' }}>🔙</span>
-                    One-Touch
-                    <span style={{
-                        display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
-                        marginLeft: '6px',
-                        background: connState === 'connected' ? '#4ade80' : '#fbbf24'
-                    }} />
+        <div className="telepathy-container">
+            {/* Header */}
+            <div className="header-bar">
+                <button onClick={() => router.push('/')} className="back-btn">
+                    ⬅ One-Touch
+                </button>
+                <div className="status-indicator">
+                    <span className="dot connected"></span>
                 </div>
-                <div className="header-controls">
-                    <button className="icon-btn" onClick={copyLink}>🔗</button>
-                    <div className="badge">👤 {count}</div>
+                <div style={{ flex: 1 }}></div>
+                <div className="header-actions">
+                    <button className="icon-btn" onClick={() => {
+                        safeLocalStorage.setItem(`history-${slug}`, '[]');
+                        setMessages([]);
+                    }}>
+                        🗑️
+                    </button>
+                    {/* Share Button (Web Share API) */}
+                    <button className="icon-btn" onClick={() => {
+                        if (navigator.share) {
+                            navigator.share({
+                                title: 'Telepathy PingPong',
+                                text: 'Join my room!',
+                                url: window.location.href,
+                            }).catch(console.error);
+                        } else {
+                            navigator.clipboard.writeText(window.location.href);
+                            alert('Link copied to clipboard!');
+                        }
+                    }}>
+                        🔗
+                    </button>
                 </div>
             </div>
 
-            <div className="heart-stage">
+            {/* Center Stage */}
+            <div className="center-stage">
                 <div
                     className={`big-heart ${animating ? 'pop' : ''}`}
-                    onClick={() => sendMessage(centerEmoji)}
+                    onClick={() => centerEmoji && sendMessage(centerEmoji)}
+                    style={{ cursor: 'pointer' }}
                 >
-                    {centerEmoji}
+                    {centerEmoji || "❤️"}
                 </div>
-                <div className="help-text">Tap to send</div>
+                {!centerEmoji && <p className="hint-text">Tap to send</p>}
             </div>
 
-            <div className="controls">
-                <div className="history" ref={historyRef}>
-                    {messages.map((m) => (
-                        <div
-                            key={m.id}
-                            className="history-item"
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`Resend ${m.emoji}`}
-                            onPointerDown={handlePointerDown}
-                            onClick={(e) => handleHistoryClick(e, m.emoji)}
-                            onKeyDown={(e) => handleKeyDown(e, m.emoji)}
-                        >
-                            {m.emoji}
-                        </div>
-                    ))}
+            {/* Bottom Panel */}
+            <div className="bottom-panel">
+                <div className="toolbar">
+                    <button
+                        className="emoji-btn"
+                        onClick={() => sendMessage("👋")}
+                    >
+                        👋
+                    </button>
+
+                    {/* Horizontal History */}
+                    <div className="history" ref={historyRef}>
+                        {messages.map((m) => (
+                            <div
+                                key={m.id}
+                                className="history-item"
+                                role="button"
+                                tabIndex={0}
+                                onMouseDown={handleMouseDown}
+                                onTouchStart={handleTouchStart}
+                                onMouseUp={(e) => handleClick(e, m.emoji)}
+                                onTouchEnd={(e) => handleClick(e, m.emoji)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        sendMessage(m.emoji);
+                                    }
+                                }}
+                                aria-label={`Resend ${m.emoji}`}
+                            >
+                                {m.emoji}
+                            </div>
+                        ))}
+                    </div>
                 </div>
+
+                {/* Emoji Grid */}
                 <div className="emoji-grid">
                     {PRESETS.map(emoji => (
-                        <button key={emoji} className="emoji-btn" onClick={() => sendMessage(emoji)}>{emoji}</button>
+                        <button key={emoji} className="emoji-btn" onClick={() => sendMessage(emoji)}>
+                            {emoji}
+                        </button>
                     ))}
-                    <div style={{ position: 'relative', overflow: 'hidden', width: '50px', height: '50px' }}>
-                        <button className="emoji-btn" style={{ position: 'absolute', width: '100%', height: '100%' }}>➕</button>
-                        <input type="text" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, fontSize: '50px', cursor: 'pointer' }}
-                            onChange={(e) => {
-                                if (e.target.value) {
-                                    sendMessage(e.target.value);
-                                    e.target.value = '';
-                                }
-                            }}
-                        />
-                    </div>
                 </div>
             </div>
         </div>
