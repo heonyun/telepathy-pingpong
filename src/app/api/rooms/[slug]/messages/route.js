@@ -2,10 +2,16 @@ import { pusherServer } from '@/lib/pusher';
 import { NextResponse } from 'next/server';
 import PushNotifications from '@pusher/push-notifications-server';
 
-const beamsClient = new PushNotifications({
-    instanceId: process.env.PUSHER_BEAMS_INSTANCE_ID,
-    secretKey: process.env.PUSHER_BEAMS_SECRET_KEY,
-});
+// Initialize Beams safely. If env vars are missing (e.g. build time), it remains null.
+let beamsClient = null;
+if (process.env.PUSHER_BEAMS_INSTANCE_ID && process.env.PUSHER_BEAMS_SECRET_KEY) {
+    beamsClient = new PushNotifications({
+        instanceId: process.env.PUSHER_BEAMS_INSTANCE_ID,
+        secretKey: process.env.PUSHER_BEAMS_SECRET_KEY,
+    });
+} else {
+    console.warn("Pusher Beams credentials missing. Push notifications will not be sent.");
+}
 
 export async function POST(req, { params }) {
     try {
@@ -21,22 +27,24 @@ export async function POST(req, { params }) {
             timestamp: new Date().toISOString()
         });
 
-        // Trigger Beams (Background Push)
-        try {
-            await beamsClient.publishToInterests([`room-${slug}`], {
-                web: {
-                    notification: {
-                        title: "Telepathy! 💘",
-                        body: `${emoji}`,
-                        deep_link: `https://telepathy-pingpong.vercel.app/r/${slug}`,
+        // Trigger Beams (Background Push) only if client is initialized
+        if (beamsClient) {
+            try {
+                await beamsClient.publishToInterests([`room-${slug}`], {
+                    web: {
+                        notification: {
+                            title: "Telepathy! 💘",
+                            body: `${emoji}`,
+                            deep_link: `https://telepathy-pingpong.vercel.app/r/${slug}`,
+                        },
+                        data: {
+                            senderId: deviceId,
+                        }
                     },
-                    data: {
-                        senderId: deviceId, // Essential for loopback filtering in SW
-                    }
-                },
-            });
-        } catch (pushErr) {
-            console.error('Beams Push Failed:', pushErr);
+                });
+            } catch (pushErr) {
+                console.error('Beams Push Failed:', pushErr);
+            }
         }
 
         return NextResponse.json({ success: true });
