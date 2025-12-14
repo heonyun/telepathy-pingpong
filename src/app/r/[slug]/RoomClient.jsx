@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { pusherClient } from '@/lib/pusher';
 import { useRouter } from 'next/navigation';
+import { nanoid } from 'nanoid';
 
 const PRESETS = ['🍚', '🏠', '😴', '❓', '🆗'];
 
@@ -18,8 +19,6 @@ export default function RoomClient({ slug }) {
 
     const historyRef = useRef(null);
     const channelRef = useRef(null);
-
-    // Drag detection refs
     const dragStart = useRef({ x: 0, y: 0 });
 
     useEffect(() => {
@@ -30,6 +29,7 @@ export default function RoomClient({ slug }) {
             localStorage.setItem('deviceId', did);
         }
         setMyDeviceId(did);
+        // Initial msg with unique ID
         setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system' }]);
 
         pusherClient.connection.bind('state_change', (states) => {
@@ -53,18 +53,21 @@ export default function RoomClient({ slug }) {
         channel.bind('pusher:member_removed', () => setCount(prev => Math.max(0, prev - 1)));
 
         channel.bind('message:new', (data) => {
+            // Ensure data has ID, else fallback
+            const msg = { ...data, id: data.id || nanoid() };
+
             setMessages(prev => {
-                const newHistory = [...prev, data];
+                const newHistory = [...prev, msg];
                 if (newHistory.length > 50) return newHistory.slice(newHistory.length - 50);
                 return newHistory;
             });
 
-            if (data.senderDeviceId !== myDeviceId) {
-                setCenterEmoji(data.emoji);
+            if (msg.senderDeviceId !== myDeviceId) {
+                setCenterEmoji(msg.emoji);
                 triggerAnimation();
                 if (document.hidden && Notification.permission === 'granted') {
                     try {
-                        new Notification('텔레파시! 💘', { body: data.emoji });
+                        new Notification('텔레파시! 💘', { body: msg.emoji });
                     } catch (e) { }
                 }
             }
@@ -96,9 +99,16 @@ export default function RoomClient({ slug }) {
             await fetch(`/api/rooms/${slug}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ deviceId: myDeviceId, emoji })
+                body: JSON.stringify({
+                    deviceId: myDeviceId,
+                    emoji,
+                    id: nanoid() // Send ID from client for optimism
+                })
             });
-        } catch { }
+        } catch (err) {
+            console.error('Send failed:', err);
+            // Fallback UI or toast could go here
+        }
     };
 
     const goHome = () => {
@@ -114,20 +124,28 @@ export default function RoomClient({ slug }) {
         }
     };
 
-    // Handle Pointer events to distinguish Scroll vs Click
+    // Robust Drag Detection (Euclidean)
     const handlePointerDown = (e) => {
         dragStart.current = { x: e.clientX, y: e.clientY };
     };
 
     const handleHistoryClick = (e, emoji) => {
-        // Calculate distance moved
         const dx = Math.abs(e.clientX - dragStart.current.x);
         const dy = Math.abs(e.clientY - dragStart.current.y);
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const threshold = e.pointerType === 'touch' ? 10 : 5;
 
-        // If moved more than 10px, treat as scroll (ignore click)
-        if (dx > 10 || dy > 10) return;
+        if (distance > threshold) return; // It was a drag
 
         sendMessage(emoji);
+        dragStart.current = { x: 0, y: 0 }; // Reset
+    };
+
+    const handleKeyDown = (e, emoji) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            sendMessage(emoji);
+        }
     };
 
     if (!mounted) return <div className="container">Loading...</div>;
@@ -162,13 +180,16 @@ export default function RoomClient({ slug }) {
 
             <div className="controls">
                 <div className="history" ref={historyRef}>
-                    {messages.map((m, i) => (
+                    {messages.map((m) => (
                         <div
-                            key={i}
+                            key={m.id}
                             className="history-item"
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Resend ${m.emoji}`}
                             onPointerDown={handlePointerDown}
                             onClick={(e) => handleHistoryClick(e, m.emoji)}
-                            style={{ cursor: 'pointer' }}
+                            onKeyDown={(e) => handleKeyDown(e, m.emoji)}
                         >
                             {m.emoji}
                         </div>

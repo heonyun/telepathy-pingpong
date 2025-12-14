@@ -1,349 +1,437 @@
 :root {
-  --background: #0f0c29;
-  --background-gradient: linear-gradient(to right, #24243e, #302b63, #0f0c29);
-  --primary: #ff007a;
-  --glass: rgba(255, 255, 255, 0.1);
+    --background: #0f0c29;
+    --background-gradient: linear-gradient(to right, #24243e, #302b63, #0f0c29);
+    --primary: #ff007a;
+    --glass: rgba(255, 255, 255, 0.1);
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--background);
-  background: var(--background-gradient);
-  color: white;
-  overflow: hidden; /* Prevent scroll bouncing */
-  height: 100dvh;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--background);
+    background: var(--background-gradient);
+    color: white;
+    overflow: hidden;
+    /* Prevent scroll bouncing */
+    height: 100dvh;
 }
 
 /* Home Page */
 .container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100dvh;
-  text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100dvh;
+    text-align: center;
 }
 
 .title {
-  font-size: 3rem;
-  font-weight: 800;
-  background: linear-gradient(to right, #ff007a, #4ade80);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  margin-bottom: 2rem;
-  line-height: 1.2;
+    font-size: 3rem;
+    font-weight: 800;
+    background: linear-gradient(to right, #ff007a, #4ade80);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-bottom: 2rem;
+    line-height: 1.2;
 }
 
 .subtitle {
-  color: #aaa;
-  margin-bottom: 3rem;
+    color: #aaa;
+    margin-bottom: 3rem;
 }
 
 .btn-primary {
-  background: var(--primary);
-  color: white;
-  border: none;
-  padding: 1rem 3rem;
-  font-size: 1.2rem;
-  border-radius: 50px;
-  cursor: pointer;
-  box-shadow: 0 0 20px rgba(255, 0, 122, 0.5);
-  transition: transform 0.2s;
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 1rem 3rem;
+    font-size: 1.2rem;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(255, 0, 122, 0.5);
+    transition: transform 0.2s;
 }
-.btn-primary:active { transform: scale(0.95); }
+
+.btn-primary:active {
+    transform: scale(0.95);
+}
 
 /* Room Page */
 .room-container {
-  display: flex;
-  flex-direction: column;
-  height: 100dvh;
-  padding: 20px;
-  box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  background: var(--glass);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    margin-bottom: 20px;
 }
 
 .header-title {
-  display: flex;
-  align-items: center;
-  font-weight: bold;
-  font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    font-weight: bold;
+    font-size: 1.2rem;
 }
 
 .header-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .badge {
-  background: rgba(0,0,0,0.3);
-  padding: 5px 12px;
-  border-radius: 12px;
-  font-size: 0.9rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 5px 12px;
+    border-radius: 12px;
+    font-size: 0.9rem;
 }
 
 .icon-btn {
-  background: rgba(255,255,255,0.1);
-  border: none;
-  color: white;
-  font-size: 1.2rem;
-  padding: 8px;
-  border-radius: 50%;
-  cursor: pointer;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
 }
-.icon-btn:active { background: rgba(255,255,255,0.2); }
+
+.icon-btn:active {
+    background: rgba(255, 255, 255, 0.2);
+}
 
 .heart-stage {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
 }
-
-.big-heart {
-  font-size: 8rem;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.1s;
-  user-select: none;
-  z-index: 10;
-}
-.big-heart:active { transform: scale(0.8); }
-
-.help-text {
-  margin-top: 20px;
-  color: rgba(255,255,255,0.5);
-  font-size: 0.9rem;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% { opacity: 0.5; }
-    50% { opacity: 1; }
-    100% { opacity: 0.5; }
-}
-
-.controls {
-  background: var(--glass);
-  backdrop-filter: blur(10px);
-  border-radius: 30px;
-  padding: 20px;
-  margin-bottom: calc(env(safe-area-inset-bottom) + 10px);
-}
-
-.history {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 20px;
-  height: 40px;
-}
-.history-item {
-  font-size: 2rem;
-  transition: all 0.3s;
-}
-
-.emoji-grid {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.emoji-btn {
-  background: rgba(255,255,255,0.05);
-  border: none;
-  font-size: 1.5rem;
-  padding: 10px;
-  border-radius: 15px;
-  cursor: pointer;
-  flex: 1;
-  transition: background 0.2s;
-}
-.emoji-btn:active { background: rgba(255,255,255,0.2); }
-
-/* Install Prompt Styles */
-.install-banner {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90%;
-  max-width: 400px;
-  background: rgba(30, 30, 40, 0.95);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  z-index: 9999;
-  animation: slideUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.install-text {
-  flex: 1;
-  color: white;
-  margin-right: 12px;
-}
-.install-text span {
-  font-size: 0.95rem;
-  line-height: 1.2;
-  display: block;
-}
-.install-text small {
-  color: #aaa;
-  font-size: 0.8rem;
-}
-
-.install-btn {
-  background: linear-gradient(135deg, #6366f1, #a855f7);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-weight: bold;
-  font-size: 0.9rem;
-  cursor: pointer;
-  white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
-}
-.install-btn:active {
-  transform: scale(0.95);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: #666;
-  font-size: 1.2rem;
-  margin-left: 8px;
-  cursor: pointer;
-  padding: 4px;
-}
-
-@keyframes slideUp {
-  from { transform: translate(-50%, 100%); opacity: 0; }
-  to { transform: translate(-50%, 0); opacity: 1; }
-}
-
-/* iOS/Samsung Guide Overlay */
-.ios-guide-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  z-index: 10000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 40px;
-  animation: fadeIn 0.3s;
-}
-
-.ios-guide-card {
-  background: #1c1c1e;
-  width: 90%;
-  max-width: 350px;
-  padding: 24px;
-  border-radius: 20px;
-  color: white;
-  text-align: center;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-  position: relative;
-  animation: bounceUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.ios-guide-card h3 {
-  margin: 0 0 16px 0;
-  font-size: 1.2rem;
-}
-.ios-guide-card p {
-  margin: 8px 0;
-  font-size: 1rem;
-  color: #ddd;
-}
-.guide-arrow {
-  margin: 20px 0;
-  font-size: 1.2rem;
-  color: #fbbf24;
-  animation: pointDown 1s infinite alternate;
-}
-.ok-btn {
-  background: #444;
-  color: white;
-  border: none;
-  padding: 12px 0;
-  width: 100%;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: bold;
-  margin-top: 10px;
-}
-
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes bounceUp { from { transform: translateY(100px); } to { transform: translateY(0); } }
-@keyframes pointDown { from { transform: translateY(0); } to { transform: translateY(5px); } }
 
 /* Animation Keyframes */
 @keyframes pop {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.3); }
-  100% { transform: scale(1); }
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.3);
+    }
+
+    100% {
+        transform: scale(1);
+    }
 }
 
 @keyframes breathe {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+
+    100% {
+        transform: scale(1);
+    }
 }
 
-/* Updated Classes */
 .big-heart {
-  animation: breathe 2s infinite ease-in-out;
+    font-size: 8rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s;
+    user-select: none;
+    z-index: 10;
+    animation: breathe 2s infinite ease-in-out;
 }
 
 .big-heart.pop {
-  animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
 }
 
-.history {
-  justify-content: flex-end;
+.big-heart:active {
+    transform: scale(0.9);
+    animation: none;
 }
 
-.history {
-  display: flex;
-  flex-direction: row;
-  overflow-x: auto;
-  justify-content: flex-start;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-  scroll-behavior: smooth;
+.help-text {
+    margin-top: 20px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.9rem;
+    animation: pulse 2s infinite;
 }
-.history::-webkit-scrollbar { display: none; }
-.history-item { flex-shrink: 0; }
-.history-item:active { transform: scale(0.9); }
+
+@keyframes pulse {
+    0% {
+        opacity: 0.5;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0.5;
+    }
+}
+
+.controls {
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 30px;
+    padding: 20px;
+    margin-bottom: calc(env(safe-area-inset-bottom) + 10px);
+}
+
+/* Unified History Styles */
+.history {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+    height: 50px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    padding: 0 10px;
+    scroll-behavior: smooth;
+
+    /* Hide scrollbar */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.history::-webkit-scrollbar {
+    display: none;
+}
+
+.history-item {
+    font-size: 2rem;
+    transition: transform 0.1s;
+    flex-shrink: 0;
+    opacity: 0.8;
+    cursor: pointer;
+    /* Moved from inline */
+}
+
+.history-item:active {
+    transform: scale(0.9);
+}
+
+.history-item:last-child {
+    opacity: 1;
+    font-size: 2.2rem;
+    font-weight: bold;
+}
+
+.emoji-grid {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.emoji-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    font-size: 1.5rem;
+    padding: 10px;
+    border-radius: 15px;
+    cursor: pointer;
+    flex: 1;
+    transition: background 0.2s;
+}
+
+.emoji-btn:active {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Install Prompt Styles */
+.install-banner {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 400px;
+    background: rgba(30, 30, 40, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    animation: slideUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.install-text {
+    flex: 1;
+    color: white;
+    margin-right: 12px;
+}
+
+.install-text span {
+    font-size: 0.95rem;
+    line-height: 1.2;
+    display: block;
+}
+
+.install-text small {
+    color: #aaa;
+    font-size: 0.8rem;
+}
+
+.install-btn {
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.install-btn:active {
+    transform: scale(0.95);
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 1.2rem;
+    margin-left: 8px;
+    cursor: pointer;
+    padding: 4px;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translate(-50%, 100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+/* iOS/Samsung Guide Overlay */
+/* ... (Existing Overlay Styles are fine, no duplicates there) ... */
+.ios-guide-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 10000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 40px;
+    animation: fadeIn 0.3s;
+}
+
+.ios-guide-card {
+    background: #1c1c1e;
+    width: 90%;
+    max-width: 350px;
+    padding: 24px;
+    border-radius: 20px;
+    color: white;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    position: relative;
+    animation: bounceUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.ios-guide-card h3 {
+    margin: 0 0 16px 0;
+    font-size: 1.2rem;
+}
+
+.ios-guide-card p {
+    margin: 8px 0;
+    font-size: 1rem;
+    color: #ddd;
+}
+
+.guide-arrow {
+    margin: 20px 0;
+    font-size: 1.2rem;
+    color: #fbbf24;
+    animation: pointDown 1s infinite alternate;
+}
+
+.ok-btn {
+    background: #444;
+    color: white;
+    border: none;
+    padding: 12px 0;
+    width: 100%;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes bounceUp {
+    from {
+        transform: translateY(100px);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+@keyframes pointDown {
+    from {
+        transform: translateY(0);
+    }
+
+    to {
+        transform: translateY(5px);
+    }
+}
