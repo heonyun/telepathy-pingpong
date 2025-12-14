@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { pusherClient } from '@/lib/pusher';
 import { useRouter } from 'next/navigation';
+import { nanoid } from 'nanoid';
 
 const PRESETS = ['🍚', '🏠', '😴', '❓', '🆗'];
 
@@ -13,10 +14,12 @@ export default function RoomClient({ slug }) {
     const [myDeviceId, setMyDeviceId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [connState, setConnState] = useState('connecting');
-    const [centerEmoji, setCenterEmoji] = useState('❤️'); // Default heart
-    const [animating, setAnimating] = useState(false); // For pop animation
+    const [centerEmoji, setCenterEmoji] = useState('❤️');
+    const [animating, setAnimating] = useState(false);
 
+    const historyRef = useRef(null);
     const channelRef = useRef(null);
+    const dragStart = useRef({ x: 0, y: 0 });
 
     useEffect(() => {
         setMounted(true);
@@ -26,6 +29,7 @@ export default function RoomClient({ slug }) {
             localStorage.setItem('deviceId', did);
         }
         setMyDeviceId(did);
+        // Initial msg with unique ID
         setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system' }]);
 
         pusherClient.connection.bind('state_change', (states) => {
@@ -49,19 +53,21 @@ export default function RoomClient({ slug }) {
         channel.bind('pusher:member_removed', () => setCount(prev => Math.max(0, prev - 1)));
 
         channel.bind('message:new', (data) => {
-            setMessages(prev => [data, ...prev].slice(0, 50));
+            // Ensure data has ID, else fallback
+            const msg = { ...data, id: data.id || nanoid() };
 
-            // 1. Receiver Animation & Emoji Update
-            if (data.senderDeviceId !== myDeviceId) {
-                setCenterEmoji(data.emoji); // Show received emoji
+            setMessages(prev => {
+                const newHistory = [...prev, msg];
+                if (newHistory.length > 50) return newHistory.slice(newHistory.length - 50);
+                return newHistory;
+            });
+
+            if (msg.senderDeviceId !== myDeviceId) {
+                setCenterEmoji(msg.emoji);
                 triggerAnimation();
-
                 if (document.hidden && Notification.permission === 'granted') {
                     try {
-                        new Notification('텔레파시 도착! 💘', {
-                            body: `${data.emoji}`,
-                            icon: '/icons/icon-192x192.png'
-                        });
+                        new Notification('텔레파시! 💘', { body: msg.emoji });
                     } catch (e) { }
                 }
             }
@@ -72,13 +78,18 @@ export default function RoomClient({ slug }) {
         };
     }, [myDeviceId, slug]);
 
+    useEffect(() => {
+        if (historyRef.current) {
+            historyRef.current.scrollLeft = historyRef.current.scrollWidth;
+        }
+    }, [messages]);
+
     const triggerAnimation = () => {
         setAnimating(true);
-        setTimeout(() => setAnimating(false), 200); // 200ms pop
+        setTimeout(() => setAnimating(false), 200);
     };
 
     const sendMessage = async (emoji) => {
-        // 2. Sender Animation & Emoji Update
         setCenterEmoji(emoji);
         triggerAnimation();
 
@@ -88,25 +99,54 @@ export default function RoomClient({ slug }) {
             await fetch(`/api/rooms/${slug}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ deviceId: myDeviceId, emoji })
+                body: JSON.stringify({
+                    deviceId: myDeviceId,
+                    emoji,
+                    id: nanoid() // Send ID from client for optimism
+                })
             });
-        } catch {
-            alert('Send failed');
-        }
-    };
-
-    const copyLink = () => {
-        const url = window.location.href;
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(url).then(() => alert('주소 복사 완료! 🔗'));
-        } else {
-            prompt("주소를 복사하세요:", url);
+        } catch (err) {
+            console.error('Send failed:', err);
+            // Fallback UI or toast could go here
         }
     };
 
     const goHome = () => {
         if (confirm('방을 나가시겠습니까?')) router.push('/');
     }
+
+    const copyLink = () => {
+        const url = window.location.href;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url).then(() => alert('주소 복사 완료! 🔗'));
+        } else {
+            prompt("주소:", url);
+        }
+    };
+
+    // Robust Drag Detection (Euclidean)
+    const handlePointerDown = (e) => {
+        dragStart.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleHistoryClick = (e, emoji) => {
+        const dx = Math.abs(e.clientX - dragStart.current.x);
+        const dy = Math.abs(e.clientY - dragStart.current.y);
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const threshold = e.pointerType === 'touch' ? 10 : 5;
+
+        if (distance > threshold) return; // It was a drag
+
+        sendMessage(emoji);
+        dragStart.current = { x: 0, y: 0 }; // Reset
+    };
+
+    const handleKeyDown = (e, emoji) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            sendMessage(emoji);
+        }
+    };
 
     if (!mounted) return <div className="container">Loading...</div>;
 
@@ -129,7 +169,6 @@ export default function RoomClient({ slug }) {
             </div>
 
             <div className="heart-stage">
-                {/* 5. Dynamic Idle & Click Animation */}
                 <div
                     className={`big-heart ${animating ? 'pop' : ''}`}
                     onClick={() => sendMessage(centerEmoji)}
@@ -140,10 +179,18 @@ export default function RoomClient({ slug }) {
             </div>
 
             <div className="controls">
-                {/* 4. History Order: Recent on RIGHT (use flex-direction: row-reverse or just justify-end) */}
-                <div className="history" style={{ justifyContent: 'flex-end' }}>
-                    {messages.slice(0, 5).map((m, i) => (
-                        <div key={i} className="history-item">
+                <div className="history" ref={historyRef}>
+                    {messages.map((m) => (
+                        <div
+                            key={m.id}
+                            className="history-item"
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Resend ${m.emoji}`}
+                            onPointerDown={handlePointerDown}
+                            onClick={(e) => handleHistoryClick(e, m.emoji)}
+                            onKeyDown={(e) => handleKeyDown(e, m.emoji)}
+                        >
                             {m.emoji}
                         </div>
                     ))}
