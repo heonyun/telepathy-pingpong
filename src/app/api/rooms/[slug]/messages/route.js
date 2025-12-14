@@ -1,21 +1,40 @@
 import { pusherServer } from '@/lib/pusher';
 import { NextResponse } from 'next/server';
+import PushNotifications from '@pusher/push-notifications-server';
+
+const beamsClient = new PushNotifications({
+    instanceId: process.env.PUSHER_BEAMS_INSTANCE_ID,
+    secretKey: process.env.PUSHER_BEAMS_SECRET_KEY,
+});
 
 export async function POST(req, { params }) {
     try {
         const { slug } = await params;
         const body = await req.json();
-        const { deviceId, emoji } = body;
+        const { deviceId, emoji, id } = body;
 
-        // Must match the channel client subscribes to (presence-room-...)
-        const channelName = `presence-room-${slug}`;
-
-        await pusherServer.trigger(channelName, 'message:new', {
-            id: Date.now().toString(),
+        // Trigger Pusher (Real-time)
+        await pusherServer.trigger(`presence-room-${slug}`, 'message:new', {
             emoji,
-            senderDeviceId: deviceId, // Use this to ignore own messages
-            createdAt: new Date().toISOString()
+            senderDeviceId: deviceId,
+            id: id || Date.now().toString(),
+            timestamp: new Date().toISOString()
         });
+
+        // Trigger Beams (Background Push)
+        try {
+            await beamsClient.publishToInterests([`room-${slug}`], {
+                web: {
+                    notification: {
+                        title: "Telepathy! 💘",
+                        body: `${emoji}`,
+                        deep_link: `https://telepathy-pingpong.vercel.app/r/${slug}`,
+                    },
+                },
+            });
+        } catch (pushErr) {
+            console.error('Beams Push Failed:', pushErr);
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

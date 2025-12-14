@@ -4,8 +4,10 @@ import { useEffect, useState, useRef } from 'react';
 import { pusherClient } from '@/lib/pusher';
 import { useRouter } from 'next/navigation';
 import { nanoid } from 'nanoid';
+import * as PusherPushNotifications from "@pusher/push-notifications-web";
 
 const PRESETS = ['🍚', '🏠', '😴', '❓', '🆗'];
+const BEAMS_INSTANCE_ID = '4338e24b-f8ae-4687-9fb2-6d303d9441ff';
 
 export default function RoomClient({ slug }) {
     const router = useRouter();
@@ -29,14 +31,29 @@ export default function RoomClient({ slug }) {
             localStorage.setItem('deviceId', did);
         }
         setMyDeviceId(did);
-        // Initial msg with unique ID
         setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system' }]);
+
+        // Auto-Rejoin Save
+        localStorage.setItem('lastRoom', slug);
 
         pusherClient.connection.bind('state_change', (states) => {
             setConnState(states.current);
         });
         setConnState(pusherClient.connection.state);
-    }, []);
+
+        // Pusher Beams Registration
+        if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+            const beamsClient = new PusherPushNotifications.Client({
+                instanceId: BEAMS_INSTANCE_ID,
+            });
+
+            beamsClient.start()
+                .then(() => beamsClient.addDeviceInterest(`room-${slug}`))
+                .then(() => console.log('Successfully registered and subscribed!'))
+                .catch(console.error);
+        }
+
+    }, [slug]);
 
     useEffect(() => {
         if (!myDeviceId || !slug) return;
@@ -53,7 +70,6 @@ export default function RoomClient({ slug }) {
         channel.bind('pusher:member_removed', () => setCount(prev => Math.max(0, prev - 1)));
 
         channel.bind('message:new', (data) => {
-            // Ensure data has ID, else fallback
             const msg = { ...data, id: data.id || nanoid() };
 
             setMessages(prev => {
@@ -65,11 +81,7 @@ export default function RoomClient({ slug }) {
             if (msg.senderDeviceId !== myDeviceId) {
                 setCenterEmoji(msg.emoji);
                 triggerAnimation();
-                if (document.hidden && Notification.permission === 'granted') {
-                    try {
-                        new Notification('텔레파시! 💘', { body: msg.emoji });
-                    } catch (e) { }
-                }
+                // In-app notification fallback if needed (but now we have Beams!)
             }
         });
 
@@ -93,8 +105,6 @@ export default function RoomClient({ slug }) {
         setCenterEmoji(emoji);
         triggerAnimation();
 
-        if (Notification.permission === 'default') Notification.requestPermission();
-
         try {
             await fetch(`/api/rooms/${slug}/messages`, {
                 method: 'POST',
@@ -102,17 +112,19 @@ export default function RoomClient({ slug }) {
                 body: JSON.stringify({
                     deviceId: myDeviceId,
                     emoji,
-                    id: nanoid() // Send ID from client for optimism
+                    id: nanoid()
                 })
             });
         } catch (err) {
             console.error('Send failed:', err);
-            // Fallback UI or toast could go here
         }
     };
 
     const goHome = () => {
-        if (confirm('방을 나가시겠습니까?')) router.push('/');
+        if (confirm('방을 나가시겠습니까? (자동 입장도 해제됩니다)')) {
+            localStorage.removeItem('lastRoom'); // Clear auto-rejoin
+            router.push('/');
+        }
     }
 
     const copyLink = () => {
@@ -124,7 +136,6 @@ export default function RoomClient({ slug }) {
         }
     };
 
-    // Robust Drag Detection (Euclidean)
     const handlePointerDown = (e) => {
         dragStart.current = { x: e.clientX, y: e.clientY };
     };
@@ -138,7 +149,7 @@ export default function RoomClient({ slug }) {
         if (distance > threshold) return; // It was a drag
 
         sendMessage(emoji);
-        dragStart.current = { x: 0, y: 0 }; // Reset
+        dragStart.current = { x: 0, y: 0 };
     };
 
     const handleKeyDown = (e, emoji) => {
