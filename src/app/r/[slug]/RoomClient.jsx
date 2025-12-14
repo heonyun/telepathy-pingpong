@@ -2,15 +2,20 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { pusherClient } from '@/lib/pusher';
+import { useRouter } from 'next/navigation';
 
 const PRESETS = ['🍚', '🏠', '😴', '❓', '🆗'];
 
 export default function RoomClient({ slug }) {
+    const router = useRouter();
     const [mounted, setMounted] = useState(false);
     const [count, setCount] = useState(0);
     const [myDeviceId, setMyDeviceId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [connState, setConnState] = useState('connecting');
+    const [centerEmoji, setCenterEmoji] = useState('❤️'); // Default heart
+    const [animating, setAnimating] = useState(false); // For pop animation
+
     const channelRef = useRef(null);
 
     useEffect(() => {
@@ -23,7 +28,6 @@ export default function RoomClient({ slug }) {
         setMyDeviceId(did);
         setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system' }]);
 
-        // Monitor connection state
         pusherClient.connection.bind('state_change', (states) => {
             setConnState(states.current);
         });
@@ -41,29 +45,24 @@ export default function RoomClient({ slug }) {
             setCount(members.count);
         });
 
-        channel.bind('pusher:subscription_error', (err) => {
-            console.error('Sub Error:', err); // Error logs are okay to keep
-            setConnState('sub_error');
-            alert('Chat connection failed. Please refresh.');
-        });
-
         channel.bind('pusher:member_added', () => setCount(prev => prev + 1));
         channel.bind('pusher:member_removed', () => setCount(prev => Math.max(0, prev - 1)));
 
         channel.bind('message:new', (data) => {
             setMessages(prev => [data, ...prev].slice(0, 50));
 
+            // 1. Receiver Animation & Emoji Update
             if (data.senderDeviceId !== myDeviceId) {
-                // Check urgency/visibilty for notification
+                setCenterEmoji(data.emoji); // Show received emoji
+                triggerAnimation();
+
                 if (document.hidden && Notification.permission === 'granted') {
                     try {
                         new Notification('텔레파시 도착! 💘', {
                             body: `${data.emoji}`,
                             icon: '/icons/icon-192x192.png'
                         });
-                    } catch (e) {
-                        // Ignore notification errors in background
-                    }
+                    } catch (e) { }
                 }
             }
         });
@@ -73,14 +72,17 @@ export default function RoomClient({ slug }) {
         };
     }, [myDeviceId, slug]);
 
-    const requestNotifPermission = async () => {
-        if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
-            await Notification.requestPermission();
-        }
+    const triggerAnimation = () => {
+        setAnimating(true);
+        setTimeout(() => setAnimating(false), 200); // 200ms pop
     };
 
     const sendMessage = async (emoji) => {
-        requestNotifPermission(); // Ask on first interaction
+        // 2. Sender Animation & Emoji Update
+        setCenterEmoji(emoji);
+        triggerAnimation();
+
+        if (Notification.permission === 'default') Notification.requestPermission();
 
         try {
             await fetch(`/api/rooms/${slug}/messages`, {
@@ -96,44 +98,52 @@ export default function RoomClient({ slug }) {
     const copyLink = () => {
         const url = window.location.href;
         if (navigator.clipboard) {
-            navigator.clipboard.writeText(url).then(() => alert('주소 복사 완료! 친구에게 공유하세요. 🔗'));
+            navigator.clipboard.writeText(url).then(() => alert('주소 복사 완료! 🔗'));
         } else {
             prompt("주소를 복사하세요:", url);
         }
     };
+
+    const goHome = () => {
+        if (confirm('방을 나가시겠습니까?')) router.push('/');
+    }
 
     if (!mounted) return <div className="container">Loading...</div>;
 
     return (
         <div className="room-container">
             <div className="header">
-                <div className="header-title">
+                <div className="header-title" onClick={goHome} style={{ cursor: 'pointer' }}>
+                    <span style={{ marginRight: '5px' }}>🔙</span>
                     One-Touch
                     <span style={{
                         display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
                         marginLeft: '6px',
-                        background: connState === 'connected' ? '#4ade80' :
-                            connState === 'sub_error' ? '#ef4444' : '#fbbf24'
-                    }} title={connState} />
+                        background: connState === 'connected' ? '#4ade80' : '#fbbf24'
+                    }} />
                 </div>
                 <div className="header-controls">
-                    <button className="icon-btn" onClick={copyLink} title="주소 복사">🔗</button>
+                    <button className="icon-btn" onClick={copyLink}>🔗</button>
                     <div className="badge">👤 {count}</div>
                 </div>
             </div>
 
             <div className="heart-stage">
-                <div className="big-heart" onClick={() => sendMessage('❤️')}>❤️</div>
-                <div className="help-text">Tap heart to send</div>
+                {/* 5. Dynamic Idle & Click Animation */}
+                <div
+                    className={`big-heart ${animating ? 'pop' : ''}`}
+                    onClick={() => sendMessage(centerEmoji)}
+                >
+                    {centerEmoji}
+                </div>
+                <div className="help-text">Tap to send</div>
             </div>
 
             <div className="controls">
-                <div className="history">
+                {/* 4. History Order: Recent on RIGHT (use flex-direction: row-reverse or just justify-end) */}
+                <div className="history" style={{ justifyContent: 'flex-end' }}>
                     {messages.slice(0, 5).map((m, i) => (
-                        <div key={i} className="history-item" style={{
-                            opacity: 1 - (i * 0.15),
-                            transform: `scale(${1 - (i * 0.1)})`
-                        }}>
+                        <div key={i} className="history-item">
                             {m.emoji}
                         </div>
                     ))}
@@ -145,7 +155,12 @@ export default function RoomClient({ slug }) {
                     <div style={{ position: 'relative', overflow: 'hidden', width: '50px', height: '50px' }}>
                         <button className="emoji-btn" style={{ position: 'absolute', width: '100%', height: '100%' }}>➕</button>
                         <input type="text" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, fontSize: '50px', cursor: 'pointer' }}
-                            onChange={(e) => { if (e.target.value) { sendMessage(e.target.value); e.target.value = ''; } }}
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    sendMessage(e.target.value);
+                                    e.target.value = '';
+                                }
+                            }}
                         />
                     </div>
                 </div>
