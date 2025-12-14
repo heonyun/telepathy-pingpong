@@ -13,9 +13,10 @@ export default function RoomClient({ slug }) {
     const [myDeviceId, setMyDeviceId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [connState, setConnState] = useState('connecting');
-    const [centerEmoji, setCenterEmoji] = useState('❤️'); // Default heart
-    const [animating, setAnimating] = useState(false); // For pop animation
+    const [centerEmoji, setCenterEmoji] = useState('❤️');
+    const [animating, setAnimating] = useState(false);
 
+    const historyRef = useRef(null);
     const channelRef = useRef(null);
 
     useEffect(() => {
@@ -26,6 +27,7 @@ export default function RoomClient({ slug }) {
             localStorage.setItem('deviceId', did);
         }
         setMyDeviceId(did);
+        // Initial messages
         setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system' }]);
 
         pusherClient.connection.bind('state_change', (states) => {
@@ -49,19 +51,20 @@ export default function RoomClient({ slug }) {
         channel.bind('pusher:member_removed', () => setCount(prev => Math.max(0, prev - 1)));
 
         channel.bind('message:new', (data) => {
-            setMessages(prev => [data, ...prev].slice(0, 50));
+            // Append new message to end (Right side)
+            setMessages(prev => {
+                const newHistory = [...prev, data];
+                // Keep last 50
+                if (newHistory.length > 50) return newHistory.slice(newHistory.length - 50);
+                return newHistory;
+            });
 
-            // 1. Receiver Animation & Emoji Update
             if (data.senderDeviceId !== myDeviceId) {
-                setCenterEmoji(data.emoji); // Show received emoji
+                setCenterEmoji(data.emoji);
                 triggerAnimation();
-
                 if (document.hidden && Notification.permission === 'granted') {
                     try {
-                        new Notification('텔레파시 도착! 💘', {
-                            body: `${data.emoji}`,
-                            icon: '/icons/icon-192x192.png'
-                        });
+                        new Notification('텔레파시! 💘', { body: data.emoji });
                     } catch (e) { }
                 }
             }
@@ -72,13 +75,19 @@ export default function RoomClient({ slug }) {
         };
     }, [myDeviceId, slug]);
 
+    // Auto-scroll to right when messages change
+    useEffect(() => {
+        if (historyRef.current) {
+            historyRef.current.scrollLeft = historyRef.current.scrollWidth;
+        }
+    }, [messages]);
+
     const triggerAnimation = () => {
         setAnimating(true);
-        setTimeout(() => setAnimating(false), 200); // 200ms pop
+        setTimeout(() => setAnimating(false), 200);
     };
 
     const sendMessage = async (emoji) => {
-        // 2. Sender Animation & Emoji Update
         setCenterEmoji(emoji);
         triggerAnimation();
 
@@ -91,22 +100,22 @@ export default function RoomClient({ slug }) {
                 body: JSON.stringify({ deviceId: myDeviceId, emoji })
             });
         } catch {
-            alert('Send failed');
-        }
-    };
-
-    const copyLink = () => {
-        const url = window.location.href;
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(url).then(() => alert('주소 복사 완료! 🔗'));
-        } else {
-            prompt("주소를 복사하세요:", url);
+            // alert('Send failed');
         }
     };
 
     const goHome = () => {
         if (confirm('방을 나가시겠습니까?')) router.push('/');
     }
+
+    const copyLink = () => {
+        const url = window.location.href;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url).then(() => alert('주소 복사 완료! 🔗'));
+        } else {
+            prompt("주소:", url);
+        }
+    };
 
     if (!mounted) return <div className="container">Loading...</div>;
 
@@ -129,7 +138,6 @@ export default function RoomClient({ slug }) {
             </div>
 
             <div className="heart-stage">
-                {/* 5. Dynamic Idle & Click Animation */}
                 <div
                     className={`big-heart ${animating ? 'pop' : ''}`}
                     onClick={() => sendMessage(centerEmoji)}
@@ -140,10 +148,15 @@ export default function RoomClient({ slug }) {
             </div>
 
             <div className="controls">
-                {/* 4. History Order: Recent on RIGHT (use flex-direction: row-reverse or just justify-end) */}
-                <div className="history" style={{ justifyContent: 'flex-end' }}>
-                    {messages.slice(0, 5).map((m, i) => (
-                        <div key={i} className="history-item">
+                {/* History: Scrollable, Right=Recent, Click to reuse */}
+                <div className="history" ref={historyRef}>
+                    {messages.map((m, i) => (
+                        <div
+                            key={i}
+                            className="history-item"
+                            onClick={() => sendMessage(m.emoji)} // Feature: Click to reuse
+                            style={{ cursor: 'pointer' }}
+                        >
                             {m.emoji}
                         </div>
                     ))}

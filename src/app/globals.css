@@ -334,3 +334,16 @@ body {
 .history {
   justify-content: flex-end;
 }
+
+.history {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  justify-content: flex-start;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+.history::-webkit-scrollbar { display: none; }
+.history-item { flex-shrink: 0; }
+.history-item:active { transform: scale(0.9); }
