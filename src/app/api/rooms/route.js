@@ -7,26 +7,13 @@ const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm
 
 export async function POST(req) {
     try {
-        const { deviceId } = await req.json();
-
         const slug = nanoid();
-        const roomId = `room:${slug}`;
-        const now = new Date().toISOString();
+        // Create room in DB (just marking it exists)
+        await db.hset(`room:${slug}`, { created: Date.now() });
 
-        const roomData = {
-            id: roomId,
-            slug,
-            ownerDeviceId: deviceId,
-            createdAt: now,
-            lastActivityAt: now,
-            isDeleted: false
-        };
-
-        await db.hset(roomId, roomData);
-
-        return NextResponse.json({ roomId, slug, url: `/r/${slug}` });
+        return NextResponse.json({ slug });
     } catch (error) {
-        console.error("Create Room Error", error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        console.error('Room Creation Error:', error);
+        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }
