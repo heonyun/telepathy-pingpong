@@ -2,30 +2,41 @@
 
 import { useState, useEffect } from 'react';
 
+// Platform detection utilities
+function getPlatform() {
+    if (typeof window === 'undefined') return 'unknown';
+    const ua = window.navigator.userAgent.toLowerCase();
+
+    if (/iphone|ipad|ipod/.test(ua)) return 'ios';
+    if (/samsungbrowser/.test(ua)) return 'samsung';
+    if (/android/.test(ua)) return 'android';
+    return 'desktop';
+}
+
+function isStandaloneMode() {
+    if (typeof window === 'undefined') return false;
+    return (
+        window.matchMedia('(display-mode: standalone)').matches ||
+        window.navigator.standalone === true
+    );
+}
+
 export default function InstallPrompt() {
     const [deferredPrompt, setDeferredPrompt] = useState(null);
-    const [isIOS, setIsIOS] = useState(false);
-    const [isSamsung, setIsSamsung] = useState(false);
-    const [isStandalone, setIsStandalone] = useState(false);
+    const [platform, setPlatform] = useState('unknown');
     const [showInstallBtn, setShowInstallBtn] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
-    const [guideType, setGuideType] = useState(null); // 'ios', 'samsung_manual'
+    const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
-        // 1. Check standalone
-        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
-            setIsStandalone(true);
-            return;
-        }
+        setIsMounted(true);
+        const currentPlatform = getPlatform();
+        setPlatform(currentPlatform);
 
-        const ua = window.navigator.userAgent.toLowerCase();
-        const ios = /iphone|ipad|ipod/.test(ua);
-        const samsung = /samsungbrowser/.test(ua);
+        // If already installed, do nothing
+        if (isStandaloneMode()) return;
 
-        setIsIOS(ios);
-        setIsSamsung(samsung);
-
-        // 2. Listen for install event (Android/Chrome/Samsung)
+        // 1. Listen for standard beforeinstallprompt
         const handleBeforeInstallPrompt = (e) => {
             e.preventDefault();
             setDeferredPrompt(e);
@@ -34,55 +45,54 @@ export default function InstallPrompt() {
 
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-        // 3. Force show button/logic for known platforms if event is slow
+        // 2. Fallback for iOS/Samsung (or if event misses)
+        // Delay to check if event fired effectively
         const timer = setTimeout(() => {
-            if (!isStandalone) {
-                if (ios) {
-                    setShowInstallBtn(true);
-                } else if (samsung) {
-                    // Samsung often supports event, but if not fired, show manual guide button
+            if (!isStandaloneMode()) {
+                const p = getPlatform();
+                if (p === 'ios' || p === 'samsung') {
+                    // Always offer manual guide access for these platforms
                     setShowInstallBtn(true);
                 }
             }
-        }, 1000);
+        }, 800);
 
         return () => {
             window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
             clearTimeout(timer);
         };
-    }, [isStandalone]);
+    }, []);
 
-    const handleInstallClick = () => {
+    const handleInstallClick = async () => {
+        // A. Priority: Standard Prompt
         if (deferredPrompt) {
-            // 1. Standard install prompt (Chrome, Samsung if event fired)
             deferredPrompt.prompt();
-            deferredPrompt.userChoice.then((choiceResult) => {
-                if (choiceResult.outcome === 'accepted') {
-                    setShowInstallBtn(false);
-                }
-                setDeferredPrompt(null);
-            });
-        } else if (isIOS) {
-            // 2. iOS Manual Guide
-            setGuideType('ios');
-            setShowGuide(true);
-        } else if (isSamsung) {
-            // 3. Samsung Manual Guide (if event didn't fire)
-            setGuideType('samsung');
-            setShowGuide(true);
-        } else {
-            // 4. Default fallback
-            alert("브라우저 메뉴에서 '앱 설치' 또는 '홈 화면에 추가'를 찾아주세요!");
+            const choice = await deferredPrompt.userChoice;
+            if (choice.outcome === 'accepted') {
+                setShowInstallBtn(false);
+            }
+            setDeferredPrompt(null);
+            return;
         }
+
+        // B. Manual Guides based on Platform
+        if (platform === 'ios' || platform === 'samsung') {
+            setShowGuide(true);
+            return;
+        }
+
+        // C. Generic Fallback
+        alert("브라우저 메뉴에서 '앱 설치' 또는 '홈 화면에 추가'를 찾아주세요.");
     };
 
-    if (isStandalone || !showInstallBtn) return null;
+    if (!isMounted || isStandaloneMode()) return null;
+    if (!showInstallBtn) return null;
 
     return (
         <>
             <div className="install-banner">
                 <div className="install-text">
-                    <span>📲 <b>앱으로 설치하기</b><br /><small>전체화면 + 알림 기능!</small></span>
+                    <span>📲 <b>앱으로 설치</b><br /><small>전체화면 + 알림!</small></span>
                 </div>
                 <button className="install-btn" onClick={handleInstallClick}>
                     설치
@@ -93,19 +103,19 @@ export default function InstallPrompt() {
             {showGuide && (
                 <div className="ios-guide-overlay" onClick={() => setShowGuide(false)}>
                     <div className="ios-guide-card" onClick={e => e.stopPropagation()}>
-                        {guideType === 'ios' ? (
+                        {platform === 'ios' ? (
                             <>
                                 <h3>아이폰 설치 가이드</h3>
-                                <p>1. 하단 공유 버튼 <span style={{ fontSize: '1.5rem' }}>📤</span> 터치</p>
-                                <p>2. 메뉴 내려서 <b>'홈 화면에 추가'</b></p>
+                                <p>1. <span style={{ fontSize: '1.3rem' }}>📤</span> <b>공유 버튼</b> 터치</p>
+                                <p>2. <b>'홈 화면에 추가'</b> 선택</p>
                                 <div className="guide-arrow">⬇️</div>
                             </>
                         ) : (
                             <>
-                                <h3>삼성 인터넷 설치 가이드</h3>
-                                <p>1. 주소창 오른쪽 <b>다운로드 아이콘(📥)</b></p>
+                                <h3>삼성 인터넷 설치</h3>
+                                <p>1. 주소창 옆 <b>📥 다운로드</b></p>
                                 <p>혹은</p>
-                                <p>2. 하단 메뉴(≡) &gt; <b>'현재 페이지 추가'</b></p>
+                                <p>2. 메뉴(≡) &gt; <b>'현재 페이지 추가'</b></p>
                                 <div className="guide-arrow">⬇️</div>
                             </>
                         )}

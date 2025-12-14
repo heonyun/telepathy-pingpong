@@ -21,7 +21,7 @@ export default function RoomClient({ slug }) {
             localStorage.setItem('deviceId', did);
         }
         setMyDeviceId(did);
-        setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system', createdAt: new Date() }]);
+        setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system' }]);
 
         // Monitor connection state
         pusherClient.connection.bind('state_change', (states) => {
@@ -42,7 +42,7 @@ export default function RoomClient({ slug }) {
         });
 
         channel.bind('pusher:subscription_error', (err) => {
-            console.error('Sub Error:', err);
+            console.error('Sub Error:', err); // Error logs are okay to keep
             setConnState('sub_error');
             alert('Chat connection failed. Please refresh.');
         });
@@ -62,7 +62,7 @@ export default function RoomClient({ slug }) {
                             icon: '/icons/icon-192x192.png'
                         });
                     } catch (e) {
-                        console.error("Notification error", e);
+                        // Ignore notification errors in background
                     }
                 }
             }
@@ -75,16 +75,12 @@ export default function RoomClient({ slug }) {
 
     const requestNotifPermission = async () => {
         if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
-            const result = await Notification.requestPermission();
-            if (result === 'granted') {
-                // Maybe show a toast saying "Notifications enabled!"
-            }
+            await Notification.requestPermission();
         }
     };
 
     const sendMessage = async (emoji) => {
-        // Request permission on first interaction if needed
-        requestNotifPermission();
+        requestNotifPermission(); // Ask on first interaction
 
         try {
             await fetch(`/api/rooms/${slug}/messages`, {
@@ -92,8 +88,7 @@ export default function RoomClient({ slug }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deviceId: myDeviceId, emoji })
             });
-        } catch (e) {
-            console.error(e);
+        } catch {
             alert('Send failed');
         }
     };
