@@ -72,6 +72,9 @@ export default function Home() {
                     </button>
                 </form>
             </div>
+            <div style={{ marginTop: '20px', color: 'rgba(255,255,255,0.3)', fontSize: '12px' }}>
+                v0.2.0 (Beams+Rejoin)
+            </div>
         </div>
     );
 }
