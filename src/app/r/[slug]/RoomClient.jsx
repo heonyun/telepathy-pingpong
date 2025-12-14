@@ -19,6 +19,9 @@ export default function RoomClient({ slug }) {
     const historyRef = useRef(null);
     const channelRef = useRef(null);
 
+    // Drag detection refs
+    const dragStart = useRef({ x: 0, y: 0 });
+
     useEffect(() => {
         setMounted(true);
         let did = localStorage.getItem('deviceId');
@@ -27,7 +30,6 @@ export default function RoomClient({ slug }) {
             localStorage.setItem('deviceId', did);
         }
         setMyDeviceId(did);
-        // Initial messages
         setMessages([{ id: 'welcome', emoji: '👋', senderDeviceId: 'system' }]);
 
         pusherClient.connection.bind('state_change', (states) => {
@@ -51,10 +53,8 @@ export default function RoomClient({ slug }) {
         channel.bind('pusher:member_removed', () => setCount(prev => Math.max(0, prev - 1)));
 
         channel.bind('message:new', (data) => {
-            // Append new message to end (Right side)
             setMessages(prev => {
                 const newHistory = [...prev, data];
-                // Keep last 50
                 if (newHistory.length > 50) return newHistory.slice(newHistory.length - 50);
                 return newHistory;
             });
@@ -75,7 +75,6 @@ export default function RoomClient({ slug }) {
         };
     }, [myDeviceId, slug]);
 
-    // Auto-scroll to right when messages change
     useEffect(() => {
         if (historyRef.current) {
             historyRef.current.scrollLeft = historyRef.current.scrollWidth;
@@ -99,9 +98,7 @@ export default function RoomClient({ slug }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deviceId: myDeviceId, emoji })
             });
-        } catch {
-            // alert('Send failed');
-        }
+        } catch { }
     };
 
     const goHome = () => {
@@ -115,6 +112,22 @@ export default function RoomClient({ slug }) {
         } else {
             prompt("주소:", url);
         }
+    };
+
+    // Handle Pointer events to distinguish Scroll vs Click
+    const handlePointerDown = (e) => {
+        dragStart.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleHistoryClick = (e, emoji) => {
+        // Calculate distance moved
+        const dx = Math.abs(e.clientX - dragStart.current.x);
+        const dy = Math.abs(e.clientY - dragStart.current.y);
+
+        // If moved more than 10px, treat as scroll (ignore click)
+        if (dx > 10 || dy > 10) return;
+
+        sendMessage(emoji);
     };
 
     if (!mounted) return <div className="container">Loading...</div>;
@@ -148,13 +161,13 @@ export default function RoomClient({ slug }) {
             </div>
 
             <div className="controls">
-                {/* History: Scrollable, Right=Recent, Click to reuse */}
                 <div className="history" ref={historyRef}>
                     {messages.map((m, i) => (
                         <div
                             key={i}
                             className="history-item"
-                            onClick={() => sendMessage(m.emoji)} // Feature: Click to reuse
+                            onPointerDown={handlePointerDown}
+                            onClick={(e) => handleHistoryClick(e, m.emoji)}
                             style={{ cursor: 'pointer' }}
                         >
                             {m.emoji}
